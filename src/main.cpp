@@ -8,7 +8,6 @@
 #include "secrets.h"
 #include <ArduinoJson.h>
 
-
 // -------- LG TV --------
 // const char* tv_ip = "192.168.1.100";  // CHANGE THIS
 
@@ -28,8 +27,9 @@ const uint16_t VOL_DOWN_B = 0x421;
 bool toggle = false;
 
 // -------- SEND LG COMMAND --------
-void sendLG(const char* uri) {
-  StaticJsonDocument<200> doc;
+void sendLG(const char *uri)
+{
+  JsonDocument doc;
 
   doc["id"] = "1";
   doc["type"] = "request";
@@ -41,33 +41,41 @@ void sendLG(const char* uri) {
   webSocket.sendTXT(msg);
 }
 
-void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
+{
 
-  if (type == WStype_CONNECTED) {
+  if (type == WStype_CONNECTED)
+  {
     Serial.println("Connected to TV");
 
-    // // STEP 1: initial register (NO key)
-    // webSocket.sendTXT(R"({
-    //   "id":"reg1",
-    //   "type":"register",
-    //   "payload":{
-    //     "pairingType":"PROMPT"
-    //   }
-    // })");
+    registered = false;
+    clientKey = "";
+
+    webSocket.sendTXT(R"({
+      "id":"reg1",
+      "type":"register",
+      "payload":{
+        "pairingType":"PROMPT"
+      }
+    })");
   }
 
-  if (type == WStype_TEXT) {
+  if (type == WStype_TEXT)
+  {
 
     Serial.println("RAW MSG:");
-    Serial.println((char*)payload);
+    Serial.println((char *)payload);
 
     JsonDocument doc;
     deserializeJson(doc, payload);
 
-    const char* msgType = doc["type"];
+    const char *msgType = doc["type"];
 
     // -------- STEP A: capture client-key --------
-    if (strcmp(msgType, "registered") == 0) {
+    const char *msgId = doc["id"] | "";
+
+    if (strcmp(msgType, "registered") == 0 && strcmp(msgId, "reg1") == 0)
+    {
 
       clientKey = doc["payload"]["client-key"].as<String>();
 
@@ -76,21 +84,17 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
       // STEP 2: re-register WITH key + permissions
       String msg =
-        String("{\"id\":\"reg2\",\"type\":\"register\",\"payload\":{")
-        + "\"pairingType\":\"PROMPT\","
-        + "\"client-key\":\"" + clientKey + "\","
-        + "\"manifest\":{"
-        + "\"manifestVersion\":1,"
-        + "\"appVersion\":\"1.0\","
-        + "\"permissions\":[\"CONTROL_AUDIO\",\"READ_AUDIO_STATUS\"]"
-        + "}}}";
+          String("{\"id\":\"reg2\",\"type\":\"register\",\"payload\":{") + "\"pairingType\":\"PROMPT\"," + "\"client-key\":\"" + clientKey + "\"," + "\"manifest\":{" + "\"manifestVersion\":1," + "\"appVersion\":\"1.0\"," + "\"permissions\":[\"CONTROL_AUDIO\",\"READ_AUDIO_STATUS\"]" + "}}}";
 
       webSocket.sendTXT(msg);
       return;
     }
 
     // -------- STEP B: registration confirmed --------
-    if (strcmp(msgType, "response") == 0 && doc["id"] == "reg2") {
+    // const char *msgId = doc["id"] | "";
+
+    if (strcmp(msgType, "response") == 0 && strcmp(msgId, "reg2") == 0)
+    {
 
       Serial.println("Registration complete");
 
@@ -107,13 +111,17 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
     }
 
     // -------- STEP C: subscription events --------
-    if (registered) {
+    if (registered)
+    {
 
       JsonObject p = doc["payload"];
 
-      if (!p.containsKey("cause")) return;
+      if (!doc["payload"].is<JsonObject>()) return;
+        return;
+      if (!doc["payload"]["cause"].is<const char*>()) return;
+        return;
 
-      const char* cause = p["cause"] | "";
+      const char *cause = p["cause"] | "";
       bool muted = p["muted"] | false;
 
       Serial.print("EVENT: ");
@@ -121,15 +129,18 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
       // ===== IR MIRROR =====
 
-      if (muted) {
+      if (muted)
+      {
         irsend.sendRC5(0x1419, 12);
         return;
       }
 
-      if (strcmp(cause, "volumeUp") == 0) {
+      if (strcmp(cause, "volumeUp") == 0)
+      {
         irsend.sendRC5(0x422, 12);
       }
-      else if (strcmp(cause, "volumeDown") == 0) {
+      else if (strcmp(cause, "volumeDown") == 0)
+      {
         irsend.sendRC5(0xC21, 12);
       }
     }
@@ -137,16 +148,17 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 }
 
 // -------- SETUP --------
-void setup() {
+void setup()
+{
   Serial.begin(115200);
 
   irsend.begin();
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-
   Serial.print("Connecting WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(500);
     Serial.print(".");
   }
@@ -158,47 +170,26 @@ void setup() {
 }
 
 // -------- LOOP --------
-void loop() {
+void loop()
+{
   webSocket.loop();
 
   // Example test: alternate IR + TV control
   static unsigned long last = 0;
 
   static unsigned long lastIR = 0;
-  if (millis() - lastIR < 80) return;
+  if (millis() - lastIR < 80)
+    return;
   lastIR = millis();
 }
 
+// Serial.println("IR Vol-");
+// uint16_t code = toggle ? VOL_DOWN_A : VOL_DOWN_B;
+// irsend.sendRC5(code, 12);
+// toggle = !toggle;
 
-    // Serial.println("IR Vol-");
-    // uint16_t code = toggle ? VOL_DOWN_A : VOL_DOWN_B;
-    // irsend.sendRC5(code, 12);
-    // toggle = !toggle;
-
-    // Serial.println("TV Vol Down");
-    // sendLG("ssap://audio/volumeDown");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Serial.println("TV Vol Down");
+// sendLG("ssap://audio/volumeDown");
 
 // #include <Arduino.h>
 // #include <IRrecv.h>
@@ -254,7 +245,6 @@ void loop() {
 
 //   delay(400);  // adjust speed if needed
 
-
 //   //  Serial.println("Volume UP");
 //   // irsend.sendRC5(0x422, 12);
 //   // irsend.sendRC5(ADDRESS, VOL_UP, RC5_BITS);
@@ -263,7 +253,6 @@ void loop() {
 //   // Serial.println("Volume DOWN");
 //   // irsend.sendRC5(ADDRESS, VOL_DOWN, RC5_BITS);
 //   // delay(300);
-
 
 //   if (irrecv.decode(&results)) {
 
@@ -284,7 +273,6 @@ void loop() {
 //   irrecv.resume();
 // }
 // }
-
 
 /*
 Power on/off
