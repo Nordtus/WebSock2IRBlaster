@@ -39,10 +39,18 @@ void sendLG(const char *uri)
   serializeJson(doc, msg);
 
   webSocket.sendTXT(msg);
+  Serial.print("> ");
+  Serial.println(msg);
 }
 
 void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 {
+
+  if (type == WStype_DISCONNECTED)
+  {
+    Serial.println("Disconnected from TV");
+    registered = false;
+  }
 
   if (type == WStype_CONNECTED)
   {
@@ -51,19 +59,15 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     registered = false;
     clientKey = "";
 
-    webSocket.sendTXT(R"({
-      "id":"reg1",
-      "type":"register",
-      "payload":{
-        "pairingType":"PROMPT"
-      }
-    })");
+    webSocket.sendTXT(R"({"id":"reg1","type":"register","payload":{"pairingType":"PROMPT"}})");
+    Serial.print("> ");
+    Serial.println(R"({"id":"reg1","type":"register","payload":{"pairingType":"PROMPT"}})");
   }
 
   if (type == WStype_TEXT)
   {
 
-    Serial.println("RAW MSG:");
+    Serial.print("< ");
     Serial.println((char *)payload);
 
     JsonDocument doc;
@@ -87,6 +91,8 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
           String("{\"id\":\"reg2\",\"type\":\"register\",\"payload\":{") + "\"pairingType\":\"PROMPT\"," + "\"client-key\":\"" + clientKey + "\"," + "\"manifest\":{" + "\"manifestVersion\":1," + "\"appVersion\":\"1.0\"," + "\"permissions\":[\"CONTROL_AUDIO\",\"READ_AUDIO_STATUS\"]" + "}}}";
 
       webSocket.sendTXT(msg);
+      Serial.print("> ");
+      Serial.println(msg);
       return;
     }
 
@@ -97,11 +103,9 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 
       registered = true;
 
-      webSocket.sendTXT(R"({
-    "id":"sub_1",
-    "type":"subscribe",
-    "uri":"ssap://audio/getVolume"
-  })");
+      webSocket.sendTXT(R"({"id":"sub_1","type":"subscribe","uri":"ssap://audio/getVolume"})");
+      Serial.print("> ");
+      Serial.println(R"({"id":"sub_1","type":"subscribe","uri":"ssap://audio/getVolume"})");
 
       return;
     }
@@ -123,19 +127,26 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
       Serial.print("EVENT: ");
       Serial.println(cause);
 
-      if (muted)
-      {
-        irsend.sendRC5(0x1419, 12);
-        return;
-      }
+      static unsigned long lastIR = 0;
 
-      if (strcmp(cause, "volumeUp") == 0)
+      if (millis() - lastIR > 80)
       {
-        irsend.sendRC5(0x422, 12);
-      }
-      else if (strcmp(cause, "volumeDown") == 0)
-      {
-        irsend.sendRC5(0xC21, 12);
+        lastIR = millis();
+
+        if (muted)
+        {
+          irsend.sendRC5(0x1419, 12);
+          return;
+        }
+
+        if (strcmp(cause, "volumeUp") == 0)
+        {
+          irsend.sendRC5(0x422, 12);
+        }
+        else if (strcmp(cause, "volumeDown") == 0)
+        {
+          irsend.sendRC5(0xC21, 12);
+        }
       }
     }
   }
@@ -161,20 +172,13 @@ void setup()
 
   webSocket.begin(TV_IP, 3000, "/");
   webSocket.onEvent(webSocketEvent);
+  webSocket.setReconnectInterval(5000); // retry every 5s
 }
 
 // -------- LOOP --------
 void loop()
 {
   webSocket.loop();
-
-  // Example test: alternate IR + TV control
-  static unsigned long last = 0;
-
-  static unsigned long lastIR = 0;
-  if (millis() - lastIR < 80)
-    return;
-  lastIR = millis();
 }
 
 // Serial.println("IR Vol-");
