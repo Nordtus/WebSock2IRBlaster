@@ -91,21 +91,17 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     }
 
     // -------- STEP B: registration confirmed --------
-    // const char *msgId = doc["id"] | "";
-
-    if (strcmp(msgType, "response") == 0 && strcmp(msgId, "reg2") == 0)
+    if (strcmp(msgType, "registered") == 0 && strcmp(msgId, "reg2") == 0)
     {
-
       Serial.println("Registration complete");
 
       registered = true;
 
-      // STEP 3: NOW subscribe (IMPORTANT FIX)
       webSocket.sendTXT(R"({
-        "id":"sub_1",
-        "type":"subscribe",
-        "uri":"ssap://audio/getVolume"
-      })");
+    "id":"sub_1",
+    "type":"subscribe",
+    "uri":"ssap://audio/getVolume"
+  })");
 
       return;
     }
@@ -113,12 +109,12 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
     // -------- STEP C: subscription events --------
     if (registered)
     {
+      if (!doc["payload"].is<JsonObject>())
+        return;
 
       JsonObject p = doc["payload"];
 
-      if (!doc["payload"].is<JsonObject>()) return;
-        return;
-      if (!doc["payload"]["cause"].is<const char*>()) return;
+      if (!p["cause"].is<const char *>())
         return;
 
       const char *cause = p["cause"] | "";
@@ -126,8 +122,6 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 
       Serial.print("EVENT: ");
       Serial.println(cause);
-
-      // ===== IR MIRROR =====
 
       if (muted)
       {
