@@ -8,7 +8,6 @@
 #include <ArduinoJson.h>
 
 // -------- LG TV --------
-// const char* tv_ip = "192.168.1.100";  // CHANGE THIS
 
 String clientKey = "";
 bool registered = false;
@@ -25,7 +24,6 @@ const uint16_t VOL_DOWN_B = 0x421;
 
 bool toggle = false;
 bool volToggle = false;
-// bool muteToggle = false;
 
 // -------- SEND LG COMMAND --------
 void sendLG(const char *uri)
