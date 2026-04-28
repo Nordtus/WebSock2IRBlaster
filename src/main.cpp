@@ -117,11 +117,9 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
 
       JsonObject p = doc["payload"];
 
-      if (!p["cause"].is<const char *>())
-        return;
-
-      const char *cause = p["cause"] | "";
       bool muted = p["muted"] | false;
+
+      const char *cause = p["cause"] | ""; // safe even if missing
 
       Serial.print("EVENT at ");
       Serial.print(millis());
@@ -129,17 +127,25 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
       Serial.println(cause);
 
       static unsigned long lastIR = 0;
+      static bool lastMuted = false;
 
-      //if (millis() - lastIR > 80)
+      if (millis() - lastIR > 80)
       {
         lastIR = millis();
 
-        if (muted)
+        // -------- MUTE HANDLING --------
+        if (p.containsKey("muted") && muted != lastMuted)
         {
+          lastMuted = muted;
+
+          Serial.print("MUTE CHANGE: ");
+          Serial.println(muted ? "ON" : "OFF");
+
           irsend.sendRC5(0x1419, 12);
           return;
         }
 
+        // -------- VOLUME HANDLING --------
         if (strcmp(cause, "volumeUp") == 0)
         {
           irsend.sendRC5(0x422, 12);
