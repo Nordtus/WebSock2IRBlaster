@@ -24,6 +24,8 @@ const uint16_t VOL_DOWN_A = 0xC21;
 const uint16_t VOL_DOWN_B = 0x421;
 
 bool toggle = false;
+bool volToggle = false;
+// bool muteToggle = false;
 
 // -------- SEND LG COMMAND --------
 void sendLG(const char *uri)
@@ -141,18 +143,38 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
           Serial.print("MUTE CHANGE: ");
           Serial.println(muted ? "ON" : "OFF");
 
-          irsend.sendRC5(0x1419, 12);
+          // irsend.sendRC5(0x1419, 12);
+
+          uint16_t code = muted ? 0x419 : 0xC19; // alternating pair
+          // muteToggle = !muteToggle;
+
+          irsend.sendRC5(code, 12);
+
           return;
         }
 
-        // -------- VOLUME HANDLING --------
+        // -------- VOLUME --------
         if (strcmp(cause, "volumeUp") == 0)
         {
-          irsend.sendRC5(0x422, 12);
+          for (int i = 0; i < 3; i++)
+          {
+            uint16_t code = volToggle ? 0x422 : 0xC22;
+            volToggle = !volToggle;
+
+            irsend.sendRC5(code, 12);
+            delay(35); // important: prevents IR collapse
+          }
         }
         else if (strcmp(cause, "volumeDown") == 0)
         {
-          irsend.sendRC5(0xC21, 12);
+          for (int i = 0; i < 3; i++)
+          {
+            uint16_t code = volToggle ? 0xC21 : 0x421;
+            volToggle = !volToggle;
+
+            irsend.sendRC5(code, 12);
+            delay(35);
+          }
         }
       }
     }
