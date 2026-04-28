@@ -1,4 +1,3 @@
-
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebSocketsClient.h>
@@ -124,12 +123,14 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length)
       const char *cause = p["cause"] | "";
       bool muted = p["muted"] | false;
 
-      Serial.print("EVENT: ");
+      Serial.print("EVENT at ");
+      Serial.print(millis());
+      Serial.print(": ");
       Serial.println(cause);
 
       static unsigned long lastIR = 0;
 
-      if (millis() - lastIR > 80)
+      //if (millis() - lastIR > 80)
       {
         lastIR = millis();
 
@@ -161,6 +162,8 @@ void setup()
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
+  WiFi.setSleep(false);
+
   Serial.print("Connecting WiFi");
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -168,11 +171,13 @@ void setup()
     Serial.print(".");
   }
 
-  Serial.println("\nWiFi connected");
+  Serial.println("\r\nWiFi connected");
 
-  webSocket.begin(TV_IP, 3000, "/");
+  // webSocket.begin(TV_IP, 3000, "/");
+  webSocket.beginSSL(TV_IP, 3001, "/");
   webSocket.onEvent(webSocketEvent);
   webSocket.setReconnectInterval(5000); // retry every 5s
+  webSocket.enableHeartbeat(15000, 3000, 2);
 }
 
 // -------- LOOP --------
